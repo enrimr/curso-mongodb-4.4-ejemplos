@@ -1,0 +1,40 @@
+==================================================================================
+EJERCICIO 1 Indices Geoespaciales
+==================================================================================
+Importar 1.datosImportar3d.json.
+
+1. ¿Cuántas tiendas están a menos de 10 Km del punto de latitud 2 y longitud 38? --> 2
+db.ejerciciotiendacercana.createIndex( {localizacion : "2dsphere"} )
+db.ejerciciotiendacercana.find ( {
+		localizacion: {
+			$near: {
+				$geometry : {
+					type:"Point",
+					coordinates : [2,38]
+				},
+				$maxDistance : 10000 
+			}
+		}
+	
+	}  ).count()
+
+2. ¿Cuántas tiendas de deporte están a menos de 200 Km del punto de latitud 2 y longitud 38? -->28
+
+
+db.ejerciciotiendacercana.createIndex( { tipo : 1 , localizacion : "2dsphere" } )
+db.ejerciciotiendacercana.find ( {
+	$and : [
+		{tipo:"Deporte"},
+		{
+			localizacion: {
+				$near: {
+					$geometry : {
+						type:"Point",
+						coordinates : [2,38]
+					},
+					$maxDistance : 200001 
+				}
+			}
+		}
+	]
+	}  ).count()

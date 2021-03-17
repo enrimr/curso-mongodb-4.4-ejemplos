@@ -1,0 +1,71 @@
+Lo que normalmente se suele hacer es poner cada uno de los mongod en cada servidor fisico para que realmente haya tolerancia a fallos y se podrían ejecutar todos en el puerto estandard.
+Pero vamos a simular eso en un único nodo, y habrá que ejecutarlos en puertos distintos para que no haya conflictos.
+
+Pasos
+1. Creamos carpetas rs1, rs2 y rs3 en C:\mongodb\data
+
+2. Paro los servicios que hubiera levantados
+
+3. 
+mongod --replSet m101 --logpath "C:/mongodb/log/1.log" --dbpath C:/mongodb/data/rs1 --port 27017 --oplogSize 64 --smallfiles
+mongod --replSet m101 --logpath "C:/mongodb/log/2.log" --dbpath C:/mongodb/data/rs2 --port 27018 --oplogSize 64 --smallfiles
+mongod --replSet m101 --logpath "C:/mongodb/log/3.log" --dbpath C:/mongodb/data/rs3 --port 27019 --oplogSize 64 --smallfiles
+
+4.
+Ahora mismo serían independientes entre ellos, no sabrían los unos de los otros. 
+Para que se intercomunicaran habría que escribir los siguientes comandos:
+
+
+config = { _id: "m101", members:[
+          { _id : 0, host : "localhost:27017", priority:0, slaveDelay:5}, //Retardo de 5 segs con respecto a los demas por lo que no obtendrá sus datos hasta 5 segundos después de las otras máquinas y además no le permito convertirse en primario con priority=0
+          { _id : 1, host : "localhost:27018"},
+          { _id : 2, host : "localhost:27019"} ]
+};
+
+rs.initiate(config);//Comando shell de mongo 
+rs.status();//Obtengo estado para ver como va
+
+5. Me conecto a uno de los nodos para iniciar el replica set, pero no puedo hacerlo desde uno que no puede ser primario por lo que me conecto por el puerto 27018. Lo haré pasandole el fichero de init_replica.js para que inicie el replica set
+>cd C:\cargas\6.Replicacion\
+>mongo --port 27018 < init_replica.js
+
+6. Ahora me conecto a mongo --port 27018 y veo como me marca que estoy en PRIMARIO o SECUNDARIO dependiendo de como hayan sido elegidos
+
+7. Ejecuto rs.status() veo el estado y veo que tengo 3 nodos en mi replicaset
+
+8. Si estoy conectado a uno secundario no podré escribir nada, así que me saldré y me conectaré al primario
+
+9. Inserto algo en una coleccion db.people.insert({name:"Primera inserción"})
+
+10. Vamos a uno de los secundarios y vemos que hay
+
+11. db.people.find(), no me deja porque por defecto no puedo ir a leer a los secundarios
+
+12. Ejecutamos el comando rs.slaveOk()
+
+=========================================================================================================
+SEGUNDA PARTE -- (VEO COMO AL PARAR EL PRIMARIO UN SECUNDARIO SE CONVIERTE EN PRIMARIO)
+=========================================================================================================
+1. Me conecto a Primario
+
+2. db.people.insert({name:"Nueva Insercion"})
+
+3. Para entrar a la base de datos local: use local y después show collections
+
+4. Se ve la coleccion oplog.rs, hacemos un find en ella
+
+5. db.oplog.rs.find().pretty()		--> 
+	Vemos como hay operaciones 
+		+de insert  "op": "i"  
+		+de creación de coleccion "op":"c"
+
+6. Voy a secundario y busco en la coleccion db.people.find()
+
+7. Voy a su oplog y tengo que ver el insert que vi en el oplog anterior. Ademas si hago rs.status() puedo ver las ultimas horas de sincronizacion.
+
+8. Vamos a parar el primario. Salgo del primario si estoy en él y entro en uno secundario que no sea el 27017 que no puede ser primario
+
+9. Paro el servidor primario 
+
+10. Hago rs.status() y veo como en el que estoy ahora es el primario 
+

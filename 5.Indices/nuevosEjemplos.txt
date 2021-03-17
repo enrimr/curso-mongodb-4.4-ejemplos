@@ -1,0 +1,33 @@
+load ("c:/cargas/4.Indices/nuevos/create_scores2.js")
+
+db.students.find({student_id:5})
+
+db.students.explain().find({student_id:5}) <!-- Se ve en winningplan como esta haciendoun COLLSCAN, examina todos los documentos-->
+
+db.students.createIndex({stundent_id:1})<!--Tarda en crear el indice-->
+
+db.students.explain().find({student_id:5}) <!-- Se ve en winningplan como esta haciendoun IXSCAN, y vemos el indice que ha utilizado-->
+
+db.students.explain(true).find({student_id:5}) <!-- Vemos que solo examina 10 documentos -->
+
+db.students.createIndex({stundent_id:1,class_id:-1})<!--No afecta a lo que hemos hecho pero si al sort-->
+
+db.student.getIndexes();<!-- para ver los indices de una coleccione desde la v3.0-->
+db.student.dropIndex({stundent_id:1});
+
+
+<!-- Multi Clave -->
+
+db.foo.insert({a:1,b:2})
+
+db.foo.explain().find({a:1,b:2})
+
+db.foo.createIndex({a:1,b:1})
+
+db.foo.explain().find({a:1,b:2})
+
+db.foo.insert({a:3,b:[3,5,9]})
+
+db.foo.explain().find({a:3,b:5})
+
+db.foo.insert({a:[4,5,6],b:[3,5,9]}) <!--Error -->

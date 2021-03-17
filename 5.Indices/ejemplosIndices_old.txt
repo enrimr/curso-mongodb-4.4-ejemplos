@@ -1,0 +1,169 @@
+
+4.1 Creación índices
+=======================================================================
+1º. Cargar fichero cargaPuntuacionesIndices.js
+
+db.puntuacionesIndices.find({"puntuaciones.examen": {$gt:90} } )
+<!-- esto es rápido -->
+db.puntuacionesIndices.find({"puntuaciones.examen": {$gt:90} } ).count()
+<!-- aquí tarda un poco mas por lo que se necesitará un indice para ese campo -->
+
+db.puntuacionesIndices.ensureIndex({"puntuaciones.examen":1})
+<!-- tarda en crear el indice ya que tiene que recorrer 1500000 deregistros -->
+
+db.puntuacionesIndices.getIndexes() <!-- da los indices de la coleccion -->
+
+db.puntuacionesIndices.stats() <!-- da inforamcion de la tabal pero tiene apartado para indices donde dice cuanto ocupan los indices de la coleccion -->
+
+db.puntuacionesIndices.stats(1024*1024)
+
+
+4.2 Indices unicos y esparcidos
+=======================================================================
+db.indicesEsparcidos.insert ( {a:1,b:1,c:1} )
+db.indicesEsparcidos.insert ( {b:1,c:1,d:1} )
+db.indicesEsparcidos.insert ( {a:1,b:1,d:1} )
+db.indicesEsparcidos.insert ( {c:1,d:1,e:1} )
+
+crear indice sobre a y los que no tengan que no se incluyan en el indice
+
+db.indicesEsparcidos.ensureIndex( {a:1} , {sparse : true} )
+
+db.indicesEsparcidos.find() <!-- salen todos -->
+
+db.indicesEsparcidos.find({a:1}) <!-- salen dos -->
+
+db.indicesEsparcidos.find().sort({a:1}) <!-- salen dos, cuando el find es de todos, porque utiliza el indice y como algunos no usan ese campo no aparecen -->
+
+4.3 Indices TTL 
+=======================================================================
+db.indicesTTL.ensureIndex({creado:1},{expireAfterSeconds:5})<!-- Crea indice y que despues de 5 segs de la fecha del campo debe eliminar el documento -->
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime() ) } )
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime()+10000 ) } )
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime()+20000 ) } )
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime()+30000 ) } )
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime()+40000 ) } )
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime()+50000 ) } )
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime()+60000 ) } )
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime()+70000 ) } )
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime()+80000 ) } )
+db.indicesTTL.insert ( {creado: new Date (new Date().getTime()+90000 ) } )
+db.indicesTTL.find()
+
+db.indicesTTL.find().count() <!-- Hay un proceso que mira que indices tienen que ir eliminandose y pasa cada min mas o menos -->
+
+
+4.4 Uso de índices
+=======================================================================
+1º. Cargar fichero cargaPuntuacionesIndices2.js
+db.puntuacionesIndices2.find().count()
+
+db.puntuacionesIndices2.ensureIndex({puntuacion:1})
+
+db.puntuacionesIndices2.find({puntuacion : {$lt : 60}}).count()
+
+db.puntuacionesIndices2.find({puntuacion : {$lt : 60}}).explain("executionStats")
+
+db.puntuacionesIndices2.find({tipo:"examen", puntuacion : {$lt : 60}}).explain("executionStats")
+<!-- no ejecuta indice 
+"nReturned" : 150353,
+"executionTimeMillis" : 2995,
+"totalKeysExamined" : 600023,
+"totalDocsExamined" : 600023,
+-->
+
+<!-- Creamos el nuevo indice -->
+db.puntuacionesIndices2.ensureIndex({tipo:1 , puntuacion:1})
+
+db.puntuacionesIndices2.find({tipo:"examen", puntuacion : {$lt : 60}}).explain("executionStats")
+<!-- Ahora si ejecuta indice
+"nReturned" : 150353,
+"executionTimeMillis" : 731,
+"totalKeysExamined" : 150353,
+"totalDocsExamined" : 150353,
+
+Y vemos  "winningPlan" :  "indexName" : "tipo_1_puntuacion_1",
+Y "rejectedPlans": "indexName" : "puntuacion_1",
+-->
+
+4.5 Cuando usar de índices
+=======================================================================
+1º. Cargar fichero cargaPuntuacionesIndices3.js
+db.puntuacionesIndices3.ensureIndex({tipo:1 , puntuacion:-1})
+
+db.puntuacionesIndices3.find({tipo:"examen"}).explain("executionStats") 
+<!-- si usa el indice porque es el primero de dos, si el indice tuviera 3 podria usarlo con 2 campos, etc... -->
+
+db.puntuacionesIndices3.find({tipo:"examen" , puntuacion : {$gt:65}}).explain("executionStats") 
+<!-- si usa el indice porque son los dos campos del indice -->
+
+db.puntuacionesIndices3.find({tipo:"examen"}).sort({puntuacion : -1}).explain("executionStats") 
+<!-- si usa el indice porque busca por el primero y ordena por el segundo en el mismo sentido -->
+
+db.puntuacionesIndices3.find({tipo:"examen"}).sort({puntuacion : 1}).explain("executionStats") 
+<!-- si usa el indice porque busca por el primero y ordena por el segundo en el sentido contrario, ver campo "direction" : "backward" -->
+
+db.puntuacionesIndices3.find({tipo:"examen",idEstudiante:1}).explain("executionStats") 
+<!-- no usa el indice campos distintos, recorre todos para sacar los valores -->
+
+db.puntuacionesIndices3.find({puntuacion : {$gt:99}}).explain("executionStats") 
+<!-- no usa el indice criterio sobre el segundo campo -->
+
+
+4.6 Cuando usar de índices
+=======================================================================
+db.puntuacionesIndices3.getIndexes()
+
+db.puntuacionesIndices3.ensureIndex({puntuacion:1})
+
+db.puntuacionesIndices3.find({tipo:"examen" , puntuacion : {$gt:90}}).explain("executionStats") 
+<!-- utiliza el indice con los dos campos -->
+
+db.puntuacionesIndices3.find({tipo:"examen" , puntuacion : {$gt:90}}).hint({ puntuacion : 1 }).explain("executionStats") 
+<!-- Hemos forzado a utilizar el indice de puntuacion, en este caso se ha empeorado la consulta -->
+
+
+4.7 Indices que no aportan
+=======================================================================
+1º. Cargar fichero cargaPuntuacionesIndices4.js
+
+db.puntuacionesIndices4.getIndexes()
+
+db.puntuacionesIndices4.find({tipo:"examen"}).explain("executionStats") 
+<!-- se ha recorrido todos los documentos tiempo 870 ms-->
+
+<!-- creamos el indice -->
+db.puntuacionesIndices4.ensureIndex({tipo:1})
+
+
+db.puntuacionesIndices4.find({tipo:"examen"}).explain("executionStats") 
+<!-- ya no se han recorrido todos los documentos pero el tiempo es 620 ms, no se ha bajado mucho porque el campo tipo no es muy selectivo, solo tiene 4 campos-->
+
+>db.puntuacionesIndices4.find({puntuacion:{$gt:5}}).explain("executionStats") 
+"nReturned" : 949865,
+"executionTimeMillis" : 833,
+"totalKeysExamined" : 0,
+"totalDocsExamined" : 1000000,
+
+<!-- creamos el indice -->
+db.puntuacionesIndices4.ensureIndex({puntuacion:1})
+
+<!-- volvemos a ejecutar -->
+>db.puntuacionesIndices4.find({puntuacion:{$gt:5}}).explain("executionStats") 
+"nReturned" : 949865,
+"executionTimeMillis" : 4221,   
+"totalKeysExamined" : 949865, <!-- Hemos recorrido casi todas las ramas del arbol al 95%, lo que ha generado que el tiempo sea mayor -->
+"totalDocsExamined" : 949865,
+
+<!--Interesa que no se ejecute el indice, se puede forzar -->
+db.puntuacionesIndices4.find({puntuacion:{$gt:5}}).hint( {$natural : 1} ).explain("executionStats") 
+"nReturned" : 949865,
+"executionTimeMillis" : 839,
+"totalKeysExamined" : 0,
+"totalDocsExamined" : 1000000,
+
+>db.puntuacionesIndices4.find({puntuacion:{$gt:95}}).explain("executionStats") 
+"nReturned" : 49978,
+"executionTimeMillis" : 282,
+"totalKeysExamined" : 49978,<!-- aqui si hay mejoria -->
+"totalDocsExamined" : 49978,
